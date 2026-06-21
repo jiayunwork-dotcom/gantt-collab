@@ -166,6 +166,8 @@ export interface ActivityLog {
   targetType: TargetType;
   targetId: string;
   changes: Record<string, { old: any; new: any }> | Record<string, any>;
+  isUndo?: boolean;
+  undoOfId?: string;
   createdAt: string;
 }
 

@@ -239,6 +239,25 @@ export default function ProjectPage() {
     } catch {}
   }, [projectId, router]);
 
+  const refreshAllData = useCallback(async () => {
+    try {
+      const [t, d, r, w, b, c] = await Promise.all([
+        tasksApi.list(projectId),
+        dependenciesApi.list(projectId),
+        resourcesApi.list(projectId),
+        resourcesApi.workload(projectId),
+        baselinesApi.list(projectId),
+        projectsApi.listCollaborators(projectId),
+      ]);
+      setTasks(t);
+      setDependencies(d);
+      setResources(r);
+      setWorkload(w);
+      setBaselines(b);
+      setCollaborators(c);
+    } catch {}
+  }, [projectId]);
+
   const handleRemoteOp = (msg: OpMessage) => {
     const { op, payload } = msg;
     switch (op) {
@@ -423,7 +442,7 @@ export default function ProjectPage() {
   const { viewStart, viewEnd } = computeViewRange();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ paddingRight: 280 }}>
+    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ paddingRight: 320 }}>
       <GanttHeader
         projectName={project.name}
         onlineUsers={ganttOnline}
@@ -697,6 +716,7 @@ export default function ProjectPage() {
         projectId={projectId}
         currentUserId={currentUserId}
         externalLogs={liveActivityLogs}
+        onDataChanged={refreshAllData}
       />
     </div>
   );

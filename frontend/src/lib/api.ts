@@ -135,6 +135,12 @@ export const importExportApi = {
     api.post<Task[]>(`/projects/${projectId}/import/json`, data).then(extractData),
 };
 
+export interface UndoErrorResponse {
+  code: 'TIMEOUT' | 'NOT_OWNER' | 'MODIFIED' | 'CONFLICT' | 'NOT_FOUND' | 'NOT_SUPPORTED';
+  message: string;
+  conflictFields?: string[];
+}
+
 export const activityLogsApi = {
   list: (projectId: string, page: number = 1, pageSize: number = 20, actionType?: ActionType) => {
     const params: Record<string, any> = { page, pageSize };
@@ -143,6 +149,10 @@ export const activityLogsApi = {
       .get<PaginatedActivityLogs>(`/projects/${projectId}/activity-logs`, { params })
       .then(extractData);
   },
+  undo: (projectId: string, logId: string, force: boolean = false) =>
+    api
+      .post<{ success: boolean }>(`/projects/${projectId}/activity-logs/${logId}/undo`, { force })
+      .then(extractData),
 };
 
 export default api;

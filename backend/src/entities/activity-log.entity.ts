@@ -72,6 +72,12 @@ export class ActivityLog {
   @Column({ type: 'jsonb', nullable: true })
   changes: Record<string, { old: any; new: any }> | Record<string, any>;
 
+  @Column({ type: 'boolean', default: false })
+  isUndo: boolean;
+
+  @Column({ nullable: true })
+  undoOfId: string;
+
   @CreateDateColumn()
   @Index()
   createdAt: Date;
