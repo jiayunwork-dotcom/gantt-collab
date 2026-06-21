@@ -29,6 +29,7 @@ interface TaskBarProps {
   lockUser?: { name: string; color: string } | null;
   isSelected: boolean;
   isCritical: boolean;
+  hasDragConflict?: boolean;
   onMouseDown: (e: React.MouseEvent, action: 'move' | 'resize-start' | 'resize-end') => void;
   onClick: (e: React.MouseEvent) => void;
   baselineTask?: BaselineTask;
@@ -44,6 +45,7 @@ export const TaskBar: React.FC<TaskBarProps> = ({
   lockUser,
   isSelected,
   isCritical,
+  hasDragConflict,
   onMouseDown,
   onClick,
   baselineTask,
@@ -144,7 +146,8 @@ export const TaskBar: React.FC<TaskBarProps> = ({
         className={clsx(
           'absolute rounded-md shadow-sm cursor-move group transition-all',
           isSelected && 'ring-2 ring-blue-600 ring-offset-1 z-20',
-          isLocked && 'ring-2 z-10'
+          isLocked && 'ring-2 z-10',
+          hasDragConflict && 'ring-2 ring-red-600 z-20 animate-pulse'
         )}
         style={{
           left,
@@ -152,7 +155,11 @@ export const TaskBar: React.FC<TaskBarProps> = ({
           width,
           height: barHeight,
           backgroundColor: bgColor,
-          border: isCritical ? '2px solid #B91C1C' : '1px solid rgba(0,0,0,0.15)',
+          border: hasDragConflict
+            ? '2px solid #DC2626'
+            : isCritical
+            ? '2px solid #B91C1C'
+            : '1px solid rgba(0,0,0,0.15)',
           // @ts-ignore
           '--tw-ring-color': isLocked ? (lockUser?.color || '#EF4444') : undefined,
         } as React.CSSProperties}

@@ -37,6 +37,149 @@ const ROW_HEIGHT = 48;
 const TASK_LIST_WIDTH = 280;
 const PADDING_DAYS = 7;
 
+interface DependencyConflict {
+  taskId: string;
+  message: string;
+}
+
+function checkDependencyConflicts(
+  taskId: string,
+  newStart: Date,
+  newEnd: Date,
+  tasks: Task[],
+  dependencies: Dependency[]
+): DependencyConflict[] {
+  const conflicts: DependencyConflict[] = [];
+  const taskMap = new Map(tasks.map((t) => [t.id, t]));
+
+  const preds = dependencies.filter((d) => d.targetId === taskId);
+  for (const dep of preds) {
+    const pred = taskMap.get(dep.sourceId);
+    if (!pred) continue;
+    const lagDays = dep.lag || 0;
+
+    switch (dep.type) {
+      case 'FS': {
+        const constraint = addDays(pred.endDate, lagDays);
+        if (newStart < constraint) {
+          const predName = pred.name;
+          conflicts.push({
+            taskId: dep.sourceId,
+            message: `前置任务「${predName}」未完成(FS约束)：需在 ${pred.endDate.toLocaleDateString()} 之后开始`,
+          });
+        }
+        break;
+      }
+      case 'FF': {
+        const constraint = addDays(pred.endDate, lagDays);
+        if (newEnd < constraint) {
+          const predName = pred.name;
+          conflicts.push({
+            taskId: dep.sourceId,
+            message: `前置任务「${predName}」未完成(FF约束)：需在 ${pred.endDate.toLocaleDateString()} 之后结束`,
+          });
+        }
+        break;
+      }
+      case 'SS': {
+        const constraint = addDays(pred.startDate, lagDays);
+        if (newStart < constraint) {
+          const predName = pred.name;
+          conflicts.push({
+            taskId: dep.sourceId,
+            message: `前置任务「${predName}」未开始(SS约束)：需在 ${pred.startDate.toLocaleDateString()} 之后开始`,
+          });
+        }
+        break;
+      }
+      case 'SF': {
+        const constraint = addDays(pred.startDate, lagDays);
+        if (newEnd < constraint) {
+          const predName = pred.name;
+          conflicts.push({
+            taskId: dep.sourceId,
+            message: `前置任务「${predName}」未开始(SF约束)：需在 ${pred.startDate.toLocaleDateString()} 之后结束`,
+          });
+        }
+        break;
+      }
+    }
+  }
+
+  const succs = dependencies.filter((d) => d.sourceId === taskId);
+  for (const dep of succs) {
+    const succ = taskMap.get(dep.targetId);
+    if (!succ) continue;
+    const lagDays = dep.lag || 0;
+
+    switch (dep.type) {
+      case 'FS': {
+        const earliestSuccStart = addDays(newEnd, lagDays);
+        if (succ.startDate < earliestSuccStart) {
+          const succName = succ.name;
+          conflicts.push({
+            taskId: dep.targetId,
+            message: `后继任务「${succName}」将违反FS约束：其开始日期 ${succ.startDate.toLocaleDateString()} 早于新结束日期`,
+          });
+        }
+        break;
+      }
+      case 'FF': {
+        const earliestSuccFinish = addDays(newEnd, lagDays);
+        if (succ.endDate < earliestSuccFinish) {
+          const succName = succ.name;
+          conflicts.push({
+            taskId: dep.targetId,
+            message: `后继任务「${succName}」将违反FF约束：其结束日期 ${succ.endDate.toLocaleDateString()} 早于新结束日期`,
+          });
+        }
+        break;
+      }
+      case 'SS': {
+        const earliestSuccStart = addDays(newStart, lagDays);
+        if (succ.startDate < earliestSuccStart) {
+          const succName = succ.name;
+          conflicts.push({
+            taskId: dep.targetId,
+            message: `后继任务「${succName}」将违反SS约束：其开始日期 ${succ.startDate.toLocaleDateString()} 早于新开始日期`,
+          });
+        }
+        break;
+      }
+      case 'SF': {
+        const earliestSuccFinish = addDays(newStart, lagDays);
+        if (succ.endDate < earliestSuccFinish) {
+          const succName = succ.name;
+          conflicts.push({
+            taskId: dep.targetId,
+            message: `后继任务「${succName}」将违反SF约束：其结束日期 ${succ.endDate.toLocaleDateString()} 早于新开始日期`,
+          });
+        }
+        break;
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+interface DragConflictInfo {
+  taskId: string;
+  conflicts: DependencyConflict[];
+  mouseX: number;
+  mouseY: number;
+}
+
+interface ConfirmDialogData {
+  taskId: string;
+  conflicts: DependencyConflict[];
+  pendingStart: Date;
+  pendingEnd: Date;
+  pendingDuration: number;
+  originalStart: Date;
+  originalEnd: Date;
+}
+
 export const GanttChart: React.FC<GanttChartProps> = ({
   tasks,
   dependencies,
@@ -62,6 +205,9 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     originalStart: Date;
     originalEnd: Date;
   } | null>(null);
+
+  const [dragConflict, setDragConflict] = useState<DragConflictInfo | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogData | null>(null);
 
   const { viewStart, viewEnd } = useMemo(() => {
     if (tasks.length === 0) {
@@ -167,7 +313,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           break;
       }
 
-      if (daysDelta === 0) return;
+      if (daysDelta === 0) {
+        setDragConflict(null);
+        return;
+      }
 
       let newStart = new Date(dragState.originalStart);
       let newEnd = new Date(dragState.originalEnd);
@@ -189,6 +338,25 @@ export const GanttChart: React.FC<GanttChartProps> = ({
 
       const newDuration = daysBetween(newStart, newEnd) + 1;
 
+      const conflicts = checkDependencyConflicts(
+        dragState.taskId,
+        newStart,
+        newEnd,
+        tasks,
+        dependencies
+      );
+
+      if (conflicts.length > 0) {
+        setDragConflict({
+          taskId: dragState.taskId,
+          conflicts,
+          mouseX: e.clientX,
+          mouseY: e.clientY,
+        });
+      } else {
+        setDragConflict(null);
+      }
+
       onTaskUpdate?.(task.id, {
         startDate: newStart,
         endDate: newEnd,
@@ -196,8 +364,26 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       });
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: MouseEvent) => {
+      if (dragState && dragConflict) {
+        const task = tasks.find((t) => t.id === dragState.taskId);
+        if (task) {
+          setConfirmDialog({
+            taskId: dragState.taskId,
+            conflicts: dragConflict.conflicts,
+            pendingStart: task.startDate,
+            pendingEnd: task.endDate,
+            pendingDuration: task.duration,
+            originalStart: dragState.originalStart,
+            originalEnd: dragState.originalEnd,
+          });
+        }
+        setDragState(null);
+        setDragConflict(null);
+        return;
+      }
       setDragState(null);
+      setDragConflict(null);
     };
 
     window.addEventListener('mousemove', handleMouseMove);
@@ -207,7 +393,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, tasks, zoomLevel, columnWidth, onTaskUpdate]);
+  }, [dragState, dragConflict, tasks, dependencies, zoomLevel, columnWidth, onTaskUpdate]);
 
   const renderGridBackground = () => {
     const rows = [];
@@ -397,6 +583,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
                   lockUser={lockUser}
                   isSelected={selectedTaskId === task.id}
                   isCritical={task.isCritical}
+                  hasDragConflict={dragConflict?.taskId === task.id}
                   onMouseDown={(e, action) => handleTaskMouseDown(task, e, action)}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -409,6 +596,81 @@ export const GanttChart: React.FC<GanttChartProps> = ({
           </div>
         </div>
       </div>
+
+      {dragConflict && (
+        <div
+          className="fixed z-[9999] pointer-events-none bg-red-900 text-white text-xs rounded-md px-3 py-2 shadow-lg max-w-xs"
+          style={{
+            left: dragConflict.mouseX + 16,
+            top: dragConflict.mouseY + 16,
+          }}
+        >
+          <div className="font-semibold text-red-200 mb-1">⚠ 依赖冲突</div>
+          {dragConflict.conflicts.map((c, i) => (
+            <div key={i} className="text-red-100 leading-relaxed">
+              {c.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {confirmDialog && (
+        <div className="fixed inset-0 z-[9999] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">依赖冲突</h3>
+                  <p className="text-sm text-gray-500">移动后违反以下依赖约束</p>
+                </div>
+              </div>
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4 space-y-1.5 max-h-40 overflow-y-auto">
+                {confirmDialog.conflicts.map((c, i) => (
+                  <div key={i} className="text-sm text-red-700 leading-relaxed">
+                    • {c.message}
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-gray-600 mb-5">
+                强制移动将允许日期重叠但不改变依赖关系，取消将还原到拖拽前的位置。
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    onTaskUpdate?.(confirmDialog.taskId, {
+                      startDate: confirmDialog.pendingStart,
+                      endDate: confirmDialog.pendingEnd,
+                      duration: confirmDialog.pendingDuration,
+                    });
+                    setConfirmDialog(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-md transition-colors"
+                >
+                  强制移动
+                </button>
+                <button
+                  onClick={() => {
+                    onTaskUpdate?.(confirmDialog.taskId, {
+                      startDate: confirmDialog.originalStart,
+                      endDate: confirmDialog.originalEnd,
+                      duration: daysBetween(confirmDialog.originalStart, confirmDialog.originalEnd) + 1,
+                    });
+                    setConfirmDialog(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
