@@ -176,7 +176,7 @@ export class CollaborationService {
     });
   }
 
-  private async publish(projectId: string, event: string, data: any): Promise<void> {
+  async publish(projectId: string, event: string, data: any): Promise<void> {
     const channel = CHANNEL_PREFIX + projectId;
     await this.redisPubSub.publish(channel, JSON.stringify({ event, data }));
   }

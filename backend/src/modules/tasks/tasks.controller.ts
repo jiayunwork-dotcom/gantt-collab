@@ -45,7 +45,7 @@ export class TasksController {
     @CurrentUser() user: User,
   ) {
     await this.tasksService.checkPermission(projectId, user.id);
-    return this.tasksService.create(projectId, dto);
+    return this.tasksService.create(projectId, dto, user.id);
   }
 
   @Get('tasks/:taskId')
@@ -66,7 +66,7 @@ export class TasksController {
     @CurrentUser() user: User,
   ) {
     await this.tasksService.checkPermission(projectId, user.id);
-    return this.tasksService.update(projectId, taskId, dto);
+    return this.tasksService.update(projectId, taskId, dto, user.id);
   }
 
   @Delete('tasks/:taskId')
@@ -77,7 +77,7 @@ export class TasksController {
     @CurrentUser() user: User,
   ) {
     await this.tasksService.checkPermission(projectId, user.id);
-    await this.tasksService.remove(projectId, taskId);
+    await this.tasksService.remove(projectId, taskId, user.id);
   }
 
   @Post('tasks/:taskId/reorder')
@@ -99,7 +99,7 @@ export class TasksController {
     @CurrentUser() user: User,
   ) {
     await this.tasksService.checkPermission(projectId, user.id);
-    return this.tasksService.move(projectId, taskId, dto.newParentId);
+    return this.tasksService.move(projectId, taskId, dto.newParentId, user.id);
   }
 
   @Get('dependencies')
@@ -118,7 +118,7 @@ export class TasksController {
     @CurrentUser() user: User,
   ) {
     await this.tasksService.checkPermission(projectId, user.id);
-    return this.dependenciesService.create(projectId, dto);
+    return this.dependenciesService.create(projectId, dto, user.id);
   }
 
   @Delete('dependencies/:dependencyId')
@@ -129,6 +129,6 @@ export class TasksController {
     @CurrentUser() user: User,
   ) {
     await this.tasksService.checkPermission(projectId, user.id);
-    await this.dependenciesService.remove(projectId, dependencyId);
+    await this.dependenciesService.remove(projectId, dependencyId, user.id);
   }
 }

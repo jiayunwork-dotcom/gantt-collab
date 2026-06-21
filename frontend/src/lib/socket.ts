@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import type { Task, Dependency, OnlineUser, TaskLock } from './types';
+import type { Task, Dependency, OnlineUser, TaskLock, ActivityLog } from './types';
 
 export const createSocket = (projectId: string, token: string): Socket => {
   return io(process.env.NEXT_PUBLIC_API_URL || '', {
@@ -28,6 +28,7 @@ export const projectSocketEvents = {
   DEPENDENCY_CREATE: 'dependency:create',
   DEPENDENCY_DELETE: 'dependency:delete',
   CONFLICT_NOTIFY: 'conflict:notify',
+  ACTIVITY_NEW: 'activity:new',
 };
 
 export interface OpMessage {
@@ -48,6 +49,7 @@ export interface SocketHandlers {
   onTaskUnlock?: (data: { taskId: string; userId: string }) => void;
   onOp?: (msg: OpMessage) => void;
   onConflict?: (data: { taskId: string; overriddenBy: string; overriddenByName: string; ts: number }) => void;
+  onActivityNew?: (log: ActivityLog) => void;
 }
 
 export const setupSocketListeners = (socket: Socket, handlers: SocketHandlers): (() => void) => {
@@ -97,6 +99,11 @@ export const setupSocketListeners = (socket: Socket, handlers: SocketHandlers): 
     const h = handlers.onConflict;
     socket.on(projectSocketEvents.CONFLICT, h);
     events.push([projectSocketEvents.CONFLICT, h]);
+  }
+  if (handlers.onActivityNew) {
+    const h = handlers.onActivityNew;
+    socket.on(projectSocketEvents.ACTIVITY_NEW, h);
+    events.push([projectSocketEvents.ACTIVITY_NEW, h]);
   }
 
   return () => {

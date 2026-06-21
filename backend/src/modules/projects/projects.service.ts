@@ -13,8 +13,11 @@ import {
   CollaboratorRole,
 } from '../../entities/collaborator.entity';
 import { Invitation } from '../../entities/invitation.entity';
+import { ActionType, TargetType } from '../../entities/activity-log.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
+import { User } from '../../entities/user.entity';
 
 const ROLE_LEVEL: Record<CollaboratorRole, number> = {
   [CollaboratorRole.VIEWER]: 1,
@@ -31,6 +34,9 @@ export class ProjectsService {
     private readonly collaboratorRepository: Repository<Collaborator>,
     @InjectRepository(Invitation)
     private readonly invitationRepository: Repository<Invitation>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly activityLogsService: ActivityLogsService,
   ) {}
 
   async create(userId: string, dto: CreateProjectDto): Promise<Project> {
@@ -124,7 +130,24 @@ export class ProjectsService {
       userId: targetUserId,
       role,
     });
-    return this.collaboratorRepository.save(collaborator);
+    const saved = await this.collaboratorRepository.save(collaborator);
+
+    const targetUser = await this.userRepository.findOne({ where: { id: targetUserId } });
+    await this.activityLogsService.create({
+      projectId,
+      userId,
+      actionType: ActionType.COLLABORATOR_ADD,
+      targetType: TargetType.COLLABORATOR,
+      targetId: saved.id,
+      changes: {
+        id: { old: undefined, new: saved.id },
+        userId: { old: undefined, new: targetUserId },
+        userName: { old: undefined, new: targetUser?.name ?? targetUserId },
+        role: { old: undefined, new: role },
+      },
+    });
+
+    return saved;
   }
 
   async updateCollaboratorRole(
@@ -143,8 +166,25 @@ export class ProjectsService {
     if (collaborator.role === CollaboratorRole.OWNER) {
       throw new BadRequestException('Cannot change owner role');
     }
+    const oldRole = collaborator.role;
     collaborator.role = role;
-    return this.collaboratorRepository.save(collaborator);
+    const saved = await this.collaboratorRepository.save(collaborator);
+
+    if (oldRole !== role) {
+      await this.activityLogsService.create({
+        projectId,
+        userId,
+        actionType: ActionType.COLLABORATOR_ROLE_CHANGE,
+        targetType: TargetType.COLLABORATOR,
+        targetId: collaboratorId,
+        changes: {
+          role: { old: oldRole, new: role },
+          userId: { old: collaborator.userId, new: collaborator.userId },
+        },
+      });
+    }
+
+    return saved;
   }
 
   async removeCollaborator(
@@ -162,7 +202,23 @@ export class ProjectsService {
     if (collaborator.role === CollaboratorRole.OWNER) {
       throw new BadRequestException('Cannot remove owner');
     }
+
+    const snapshot: Record<string, any> = {
+      id: { old: collaborator.id, new: undefined },
+      userId: { old: collaborator.userId, new: undefined },
+      role: { old: collaborator.role, new: undefined },
+    };
+
     await this.collaboratorRepository.remove(collaborator);
+
+    await this.activityLogsService.create({
+      projectId,
+      userId,
+      actionType: ActionType.COLLABORATOR_REMOVE,
+      targetType: TargetType.COLLABORATOR,
+      targetId: collaboratorId,
+      changes: snapshot,
+    });
   }
 
   async createInvitation(

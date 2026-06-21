@@ -15,6 +15,7 @@ import {
   CollaboratorRole,
   TaskPriority,
   DependencyType,
+  ActivityLog,
 } from '@/lib/types';
 import type {
   Task as ApiTask,
@@ -43,6 +44,7 @@ import TaskList from '@/components/task-list/TaskList';
 import TaskEditModal from '@/components/task-list/TaskEditModal';
 import ResourceChart from '@/components/resource-chart/ResourceChart';
 import ConflictNotification, { ConflictItem } from '@/components/collaboration/ConflictNotification';
+import ActivityLogPanel from '@/components/activity-log/ActivityLogPanel';
 
 function toGanttTask(t: ApiTask): GanttTask {
   return {
@@ -134,6 +136,7 @@ export default function ProjectPage() {
   const [inviteExpires, setInviteExpires] = useState(7);
   const [generatedInvite, setGeneratedInvite] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [liveActivityLogs, setLiveActivityLogs] = useState<ActivityLog[]>([]);
 
   const socketRef = useRef<Socket | null>(null);
 
@@ -223,6 +226,9 @@ export default function ProjectPage() {
             ...prev,
             { id, taskId, taskName: task?.name, overriddenBy, overriddenByName, ts: Date.now() },
           ]);
+        },
+        onActivityNew: (log: ActivityLog) => {
+          setLiveActivityLogs((prev) => [log, ...prev].slice(0, 100));
         },
       });
 
@@ -417,7 +423,7 @@ export default function ProjectPage() {
   const { viewStart, viewEnd } = computeViewRange();
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col" style={{ paddingRight: 280 }}>
       <GanttHeader
         projectName={project.name}
         onlineUsers={ganttOnline}
@@ -686,6 +692,12 @@ export default function ProjectPage() {
       )}
 
       <ConflictNotification conflicts={conflicts} onDismiss={dismissConflict} />
+
+      <ActivityLogPanel
+        projectId={projectId}
+        currentUserId={currentUserId}
+        externalLogs={liveActivityLogs}
+      />
     </div>
   );
 }

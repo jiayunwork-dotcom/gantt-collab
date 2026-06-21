@@ -10,6 +10,7 @@ import { BaselinesModule } from './modules/baselines/baselines.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
 import { CollaborationModule } from './modules/collaboration/collaboration.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { ActivityLogsModule } from './modules/activity-logs/activity-logs.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { RedisModule } from './modules/redis/redis.module';
     BaselinesModule,
     ImportExportModule,
     CollaborationModule,
+    ActivityLogsModule,
   ],
 })
 export class AppModule {}

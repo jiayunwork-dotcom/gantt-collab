@@ -7,8 +7,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Dependency } from '../../entities/dependency.entity';
 import { Task } from '../../entities/task.entity';
+import { ActionType, TargetType } from '../../entities/activity-log.entity';
 import { CreateDependencyDto } from './dto/create-dependency.dto';
 import { TasksService } from './tasks.service';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 @Injectable()
 export class DependenciesService {
@@ -18,9 +20,10 @@ export class DependenciesService {
     @InjectRepository(Task)
     private tasksRepository: Repository<Task>,
     private tasksService: TasksService,
+    private readonly activityLogsService: ActivityLogsService,
   ) {}
 
-  async create(projectId: string, dto: CreateDependencyDto): Promise<Dependency> {
+  async create(projectId: string, dto: CreateDependencyDto, userId?: string): Promise<Dependency> {
     if (dto.sourceTaskId === dto.targetTaskId) {
       throw new BadRequestException('Source and target task cannot be the same');
     }
@@ -62,6 +65,25 @@ export class DependenciesService {
 
     const saved = await this.dependenciesRepository.save(dependency);
     await this.tasksService.computeCriticalPath(projectId);
+
+    if (userId) {
+      const changes: Record<string, any> = {};
+      for (const k of Object.keys(dto) as Array<keyof typeof dto>) {
+        if ((dto as any)[k] !== undefined) {
+          changes[k] = { old: undefined, new: (dto as any)[k] };
+        }
+      }
+      changes.id = { old: undefined, new: saved.id };
+      await this.activityLogsService.create({
+        projectId,
+        userId,
+        actionType: ActionType.DEPENDENCY_CREATE,
+        targetType: TargetType.DEPENDENCY,
+        targetId: saved.id,
+        changes,
+      });
+    }
+
     return saved;
   }
 
@@ -69,7 +91,7 @@ export class DependenciesService {
     return this.dependenciesRepository.find({ where: { projectId } });
   }
 
-  async remove(projectId: string, dependencyId: string): Promise<void> {
+  async remove(projectId: string, dependencyId: string, userId?: string): Promise<void> {
     const dependency = await this.dependenciesRepository.findOne({
       where: { id: dependencyId, projectId },
     });
@@ -77,8 +99,27 @@ export class DependenciesService {
       throw new NotFoundException('Dependency not found');
     }
 
+    const snapshot: Record<string, any> = {};
+    if (userId) {
+      const keys = ['id', 'sourceTaskId', 'targetTaskId', 'type', 'lag'];
+      for (const k of keys) {
+        snapshot[k] = { old: (dependency as any)[k], new: undefined };
+      }
+    }
+
     await this.dependenciesRepository.remove(dependency);
     await this.tasksService.computeCriticalPath(projectId);
+
+    if (userId) {
+      await this.activityLogsService.create({
+        projectId,
+        userId,
+        actionType: ActionType.DEPENDENCY_DELETE,
+        targetType: TargetType.DEPENDENCY,
+        targetId: dependencyId,
+        changes: snapshot,
+      });
+    }
   }
 
   async detectCycle(

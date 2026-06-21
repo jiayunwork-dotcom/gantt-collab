@@ -127,3 +127,52 @@ export interface TaskLock {
 }
 
 export type ZoomLevel = 'day' | 'week' | 'month' | 'quarter';
+
+export enum ActionType {
+  task_create = 'task_create',
+  task_delete = 'task_delete',
+  task_update = 'task_update',
+  task_move = 'task_move',
+  dependency_create = 'dependency_create',
+  dependency_delete = 'dependency_delete',
+  collaborator_add = 'collaborator_add',
+  collaborator_remove = 'collaborator_remove',
+  collaborator_role_change = 'collaborator_role_change',
+  baseline_create = 'baseline_create',
+  baseline_delete = 'baseline_delete',
+}
+
+export enum TargetType {
+  task = 'task',
+  dependency = 'dependency',
+  collaborator = 'collaborator',
+  baseline = 'baseline',
+}
+
+export interface ActivityLogUser {
+  id: string;
+  name: string;
+  email?: string;
+  avatar?: string;
+  cursorColor?: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  projectId: string;
+  userId: string;
+  user?: ActivityLogUser;
+  actionType: ActionType;
+  targetType: TargetType;
+  targetId: string;
+  changes: Record<string, { old: any; new: any }> | Record<string, any>;
+  createdAt: string;
+}
+
+export interface PaginatedActivityLogs {
+  items: ActivityLog[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
+}

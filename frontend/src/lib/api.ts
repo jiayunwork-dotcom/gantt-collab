@@ -9,6 +9,9 @@ import type {
   ResourceWorkload,
   Baseline,
   CollaboratorRole,
+  ActivityLog,
+  PaginatedActivityLogs,
+  ActionType,
 } from './types';
 
 const api: AxiosInstance = axios.create({
@@ -130,6 +133,16 @@ export const importExportApi = {
     }).then(extractData),
   importJson: (projectId: string, data: any) =>
     api.post<Task[]>(`/projects/${projectId}/import/json`, data).then(extractData),
+};
+
+export const activityLogsApi = {
+  list: (projectId: string, page: number = 1, pageSize: number = 20, actionType?: ActionType) => {
+    const params: Record<string, any> = { page, pageSize };
+    if (actionType) params.actionType = actionType;
+    return api
+      .get<PaginatedActivityLogs>(`/projects/${projectId}/activity-logs`, { params })
+      .then(extractData);
+  },
 };
 
 export default api;

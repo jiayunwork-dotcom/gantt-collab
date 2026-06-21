@@ -5,7 +5,9 @@ import { Baseline } from '../../entities/baseline.entity';
 import { Task } from '../../entities/task.entity';
 import { Dependency } from '../../entities/dependency.entity';
 import { Project } from '../../entities/project.entity';
+import { ActionType, TargetType } from '../../entities/activity-log.entity';
 import { CreateBaselineDto } from './dto/create-baseline.dto';
+import { ActivityLogsService } from '../activity-logs/activity-logs.service';
 
 interface BaselineSnapshot {
   tasks: Task[];
@@ -23,6 +25,7 @@ export class BaselinesService {
     private dependenciesRepository: Repository<Dependency>,
     @InjectRepository(Project)
     private projectRepository: Repository<Project>,
+    private readonly activityLogsService: ActivityLogsService,
   ) {}
 
   async create(
@@ -70,6 +73,21 @@ export class BaselinesService {
       await this.baselinesRepository.remove(oldest);
     }
 
+    await this.activityLogsService.create({
+      projectId,
+      userId,
+      actionType: ActionType.BASELINE_CREATE,
+      targetType: TargetType.BASELINE,
+      targetId: saved.id,
+      changes: {
+        id: { old: undefined, new: saved.id },
+        name: { old: undefined, new: saved.name },
+        version: { old: undefined, new: saved.version },
+        taskCount: { old: undefined, new: tasks.length },
+        dependencyCount: { old: undefined, new: dependencies.length },
+      },
+    });
+
     return saved;
   }
 
@@ -102,6 +120,21 @@ export class BaselinesService {
     if (project.ownerId !== userId) {
       throw new ForbiddenException('Only project owner can delete baselines');
     }
+
+    const snapshot: Record<string, any> = {};
+    const keys = ['id', 'name', 'version'];
+    for (const k of keys) {
+      snapshot[k] = { old: (baseline as any)[k], new: undefined };
+    }
     await this.baselinesRepository.remove(baseline);
+
+    await this.activityLogsService.create({
+      projectId,
+      userId,
+      actionType: ActionType.BASELINE_DELETE,
+      targetType: TargetType.BASELINE,
+      targetId: baselineId,
+      changes: snapshot,
+    });
   }
 }
