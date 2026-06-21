@@ -11,6 +11,11 @@ import {
   projectsApi,
 } from '@/lib/api';
 import { createSocket, setupSocketListeners, socketEmit, OpMessage } from '@/lib/socket';
+import {
+  CollaboratorRole,
+  TaskPriority,
+  DependencyType,
+} from '@/lib/types';
 import type {
   Task as ApiTask,
   Dependency as ApiDependency,
@@ -22,9 +27,6 @@ import type {
   TaskLock as ApiTaskLock,
   ZoomLevel,
   Collaborator,
-  CollaboratorRole,
-  TaskPriority,
-  DependencyType,
 } from '@/lib/types';
 
 import GanttChart from '@/components/gantt/GanttChart';
@@ -89,7 +91,8 @@ function toGanttTaskLocks(locks: Record<string, ApiTaskLock>): GanttTaskLock[] {
 function toGanttBaseline(b: ApiBaseline): GanttBaseline | null {
   try {
     const tasks: Record<string, { startDate: Date; endDate: Date; duration: number }> = {};
-    const snapTasks = b.snapshot?.tasks || [];
+    const parsed = typeof b.snapshot === 'string' ? JSON.parse(b.snapshot) : b.snapshot;
+    const snapTasks = parsed?.tasks || [];
     snapTasks.forEach((t: any) => {
       tasks[t.id] = {
         startDate: new Date(t.startDate),
@@ -127,7 +130,7 @@ export default function ProjectPage() {
   const [showImportExport, setShowImportExport] = useState(false);
   const [conflicts, setConflicts] = useState<ConflictItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inviteRole, setInviteRole] = useState<CollaboratorRole>('editor');
+  const [inviteRole, setInviteRole] = useState<CollaboratorRole>(CollaboratorRole.editor);
   const [inviteExpires, setInviteExpires] = useState(7);
   const [generatedInvite, setGeneratedInvite] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -355,7 +358,7 @@ export default function ProjectPage() {
     const name = prompt('基线名称:', `基线 ${baselines.length + 1}`);
     if (!name) return;
     try {
-      await baselinesApi.create(projectId, { name });
+      await baselinesApi.create(projectId, { name, version: `v${baselines.length + 1}` });
       const list = await baselinesApi.list(projectId);
       setBaselines(list);
     } catch (err: any) {

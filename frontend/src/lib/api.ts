@@ -43,7 +43,7 @@ const extractData = <T>(response: AxiosResponse<T>): T => response.data;
 
 export const authApi = {
   register: (data: { email: string; password: string; name: string }) =>
-    api.post<User>('/auth/register', data).then(extractData),
+    api.post<{ user: User; token: string }>('/auth/register', data).then(extractData),
   login: (data: { email: string; password: string }) =>
     api.post<{ user: User; token: string }>('/auth/login', data).then(extractData),
   me: () => api.get<User>('/auth/me').then(extractData),

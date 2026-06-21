@@ -6,13 +6,13 @@ import { Task } from '../../entities/task.entity';
 import { CreateResourceDto } from './dto/create-resource.dto';
 import { UpdateResourceDto } from './dto/update-resource.dto';
 
-interface WorkloadDay {
+export interface WorkloadDay {
   date: string;
   hours: number;
   isOverloaded: boolean;
 }
 
-interface ResourceWorkload {
+export interface ResourceWorkload {
   resourceId: string;
   name: string;
   role: string;

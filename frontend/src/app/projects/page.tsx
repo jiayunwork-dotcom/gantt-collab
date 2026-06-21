@@ -95,7 +95,7 @@ export default function ProjectsPage() {
                   {project.description || '暂无描述'}
                 </p>
                 <div className="flex items-center text-sm text-gray-500">
-                  <span>所有者：{project.owner?.name || '未知'}</span>
+                  <span>项目ID：{project.id?.slice(0, 8)}</span>
                 </div>
               </div>
             ))}
