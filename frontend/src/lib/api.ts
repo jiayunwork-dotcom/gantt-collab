@@ -113,7 +113,7 @@ export const baselinesApi = {
     api.get<Baseline[]>(`/projects/${projectId}/baselines`).then(extractData),
   get: (projectId: string, baselineId: string) =>
     api.get<Baseline>(`/projects/${projectId}/baselines/${baselineId}`).then(extractData),
-  create: (projectId: string, data: { name: string; version: string }) =>
+  create: (projectId: string, data: { name: string }) =>
     api.post<Baseline>(`/projects/${projectId}/baselines`, data).then(extractData),
   remove: (projectId: string, baselineId: string) =>
     api.delete<void>(`/projects/${projectId}/baselines/${baselineId}`).then(extractData),

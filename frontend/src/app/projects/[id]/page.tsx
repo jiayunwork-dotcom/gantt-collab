@@ -52,7 +52,7 @@ function toGanttTask(t: ApiTask): GanttTask {
     endDate: new Date(t.endDate),
     duration: t.duration ?? 0,
     progress: t.progress,
-    priority: (t.priority as any) ?? 'medium',
+    priority: t.priority ?? TaskPriority.medium,
     isMilestone: t.isMilestone,
     isCritical: (t.totalFloat ?? 0) <= 0,
     float: t.totalFloat ?? 0,
@@ -282,7 +282,7 @@ export default function ProjectPage() {
         startDate: today,
         endDate: today,
         parentId: parentId || undefined,
-        priority: 'medium' as TaskPriority,
+        priority: TaskPriority.medium,
         progress: 0,
       });
       setTasks((prev) => [...prev, created]);
@@ -313,7 +313,7 @@ export default function ProjectPage() {
       const created = await dependenciesApi.create(projectId, {
         sourceTaskId: sourceId,
         targetTaskId: targetId,
-        type: 'FS' as DependencyType,
+        type: DependencyType.FS,
         lag: 0,
       });
       setDependencies((prev) => [...prev, created]);
@@ -358,7 +358,7 @@ export default function ProjectPage() {
     const name = prompt('基线名称:', `基线 ${baselines.length + 1}`);
     if (!name) return;
     try {
-      await baselinesApi.create(projectId, { name, version: `v${baselines.length + 1}` });
+      await baselinesApi.create(projectId, { name });
       const list = await baselinesApi.list(projectId);
       setBaselines(list);
     } catch (err: any) {

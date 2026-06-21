@@ -102,8 +102,11 @@ export interface Baseline {
   id: string;
   projectId: string;
   name: string;
-  version: string;
-  snapshot: string;
+  version: number;
+  snapshot: {
+    tasks: Task[];
+    dependencies: Dependency[];
+  };
   createdAt: string;
 }
 
